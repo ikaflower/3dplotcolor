@@ -3,7 +3,7 @@ Author
 
 @ikaflower3 - http://flspz.blogspot.jp/
 
-@yoya - http://d.hatena.ne.jp/LICENSE
+@yoya - http://d.hatena.ne.jp/
 
 LICENSE
 --------------------------------
