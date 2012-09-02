@@ -1,22 +1,23 @@
 3DPlotColor
---------------------------------
+=====================
+
 This show color distribution of your image in several 3D color space(Lab/HSV/RGB/XYZ).
 
 <http://49.212.164.67/3dplotcolor/>
 
 
-Author
---------------------------------
+Authors
+--------------------
 
 @ikaflower3 - <http://flspz.blogspot.jp/>
 
 @yoya - <http://d.hatena.ne.jp/>
 
 LICENSE
---------------------------------
+=====================
 
 3DPlotColor LICENSE
-=====================
+--------------------
 
 3DPlotColor is MIT license.
 
@@ -44,7 +45,7 @@ THE SOFTWARE.
 
 
 Three.js LICENSE
-===========
+--------------------
 
 The MIT License
 
