@@ -1,7 +1,7 @@
 LICENSE
 --------------------------------
 
-3DPlotColor is MIT license.
+3DPlotColor(index.html, TacoColorLib.js, LineAxisHelper.js) is MIT license(file:LICENSE)
 
 Author: @ikaflower3 - http://flspz.blogspot.jp/
 
