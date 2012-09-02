@@ -243,9 +243,9 @@
 	function stepImage(step){
 		curimage += step%imagelist.length;
 		if(curimage<0)
-			curimage=imagelist.length-(curimage%imagelist.length);
+			curimage=imagelist.length-1;
 		if(curimage>=imagelist.length)
-			curimage=curimage%imagelist.length;
+			curimage=0;
 		setImage( imagelist[curimage] );
 	}
 
