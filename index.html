@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<title>3DPlotColor.js</title>
+<meta charset="utf-8">
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js"></script>
+
+<script src="three.min.js"></script>
+<script src="dat.gui.min.js"></script>
+
+<script src="TacoColorLib.js"></script>
+
+<script src="LineAxisHelper.js"></script>
+
+
+<style>
+	body{
+		margin: 0px;
+		overflow: hidden;
+	}
+	#optcontainer, #canvas{
+		position: absolute;
+		top: 0px;
+		left: 0px;
+	}
+	#optcontainer{
+		z-index: 100;
+	}
+	#canvas{
+		z-index: 150;
+	}
+	#sourcecanvas{
+		display: block;
+		clear:both;
+	}
+	#previmage, #nextimage{
+		margin: 0;
+		padding: 0px 30px 0px 30px;
+		color: #ffffff;
+		width: 50px;
+		text-align: center;
+		background-color: #232323;
+		border:1px solid #000000;
+		display: inline;
+	}
+	address {
+		position: absolute;
+		z-index: 150;
+		bottom: 10px;
+		right: 10px;
+		text-align: center;
+		font-style: normal;
+		font-size: 75%;
+	}
+	ul{
+		margin:0;
+		padding:0;
+	}
+	a{
+		text-decoration: none;
+	}
+	a:hover{
+		color: #DD0000;
+	}
+</style>
+</head>
+
+<body>
+<script type="text/javascript">
+	// Config
+
+	var lsize = 256;	// longer size of scaled image
+	var psize = 1;		// size of particle
+
+	var bgcolor = 0xFFFFFF;
+
+	// Global
+
+	var camera, scene, particleSystem, renderer, controls;
+	var width, height;
+
+	// cache
+	var labcache = new Array;
+	for(var i=0; i<=0xFFFFFF; i++)
+		labcache.push(-1);
+
+	var imagelist = ["img/myphoto.jpg","img/a0002_008590.jpg","img/a1620_000646.jpg","img/a0150_000024.jpg","img/a0005_000440.jpg"];
+	var curimage = 0;
+
+	var image = new Image();
+	var imgdata;
+
+	var gui;
+	var viewChanger = {
+		distance: 200,
+		change: function(p, up){
+			camera.lookAt(new THREE.Vector3(0, 0, 0));
+			camera.position.set(p[0], p[1], p[2]);
+			camera.up.set(up[0],up[1],up[2]);
+			camera.rotation.set(0,0,0);
+		},
+		top: function(){
+			this.change([0,  this.distance, 0], [0,0,-1]);
+		},
+		bottom: function(){
+			this.change([0, -this.distance, 0], [0,0,-1]);
+		},
+		left: function(){
+			this.change([-this.distance, 0, 0], [0,1,0]);
+		},
+		right: function(){
+			this.change([ this.distance, 0, 0], [0,1,0]);
+		},
+		front: function(){
+			this.change([0, 0,  this.distance], [0,1,0]);
+		},
+		back: function(){
+			this.change([0, 0, -this.distance], [0,1,0]);
+		}
+	};
+	var scriptConfig = {
+		colorSpace: 'lab',
+		lab: function(){
+			this.colorSpace='lab';
+			loadImage();
+		},
+		xyz: function(){
+			this.colorSpace='xyz';
+			loadImage();
+		},
+		rgb: function(){
+			this.colorSpace='rgb';
+			loadImage();
+		},
+		hsv: function(){
+			this.colorSpace='hsv';
+			loadImage();
+		}
+		//open : function(){
+		//	$('#fileselector').click();
+		//}
+	};
+
+	
+
+	function loadImage(img){
+		if(!img)
+			img=image;
+		if(particleSystem){
+			scene.remove(particleSystem);
+		}
+		var canvas = document.getElementById('source');
+		var context = canvas.getContext('2d');
+
+		var w = img.width;
+		var h = img.height;
+		if(w>=h){
+			h = lsize*h/w;
+			w = lsize;
+		}else{
+			w = lsize*w/h;
+			h = lsize;
+		}
+		canvas.width = w;
+		canvas.height = h;
+		context.drawImage(img, 0, 0, w, h);
+
+		var imgdata = context.getImageData(0, 0, w, h).data;
+		
+		var particles = new THREE.Geometry();
+		var len = imgdata.length>>2;
+
+		//calcurate particle coordinates from RGB color
+		var toParticle;
+		switch(scriptConfig.colorSpace){
+			case 'rgb':
+				toParticle=function(r, g, b, rgb){
+					return new THREE.Vector3(r*0.3921568-50.1960784, g*0.3921568-50.1960784, b*0.3921568-50.1960784);
+					//return new THREE.Vector3(r-128, g-128, b-128);
+					//マジックナンバーはlabのパーティクルの密度にあわせるため
+				};
+				break;
+			case 'xyz':
+				toParticle=function(r, g, b, rgb){
+					var xyz = RGBtoXYZ(r,g,b);
+					return new THREE.Vector3(xyz[0]*100-50, xyz[1]*100-50, xyz[2]*100-50);
+				};
+				break;
+			case 'hsv':
+				toParticle=function(r, g, b, rgb){
+					//from http://d.hatena.ne.jp/yoya/20120828/
+					var hsv = THREE.ColorUtils.rgbToHsv({r:r, g:g, b:b});
+					hsv.v /= 255.0
+					var rad = hsv.h * 6.2831853; // 最適化 6.2831853 = 2 * 3.1415926
+					var xyz = [hsv.v, hsv.s * Math.cos(rad), hsv.s * Math.sin(rad)];
+					return new THREE.Vector3(xyz[0]*120-60, xyz[1]*60, xyz[2]*60);
+					//マジックナンバーはlabのパーティクルの密度にあわせるため
+				};
+				break;
+			default:
+			case 'lab':
+				toParticle=function(r, g, b, rgb){
+					var lab;
+					if(labcache[rgb]==-1)
+						lab = RGBtoLAB(r,g,b);
+					else
+						lab = labcache[rgb];
+
+					return new THREE.Vector3(lab[0]-50, lab[1], lab[2]);
+				};
+		}
+
+		for(var i=0; i<len; i++){
+			var r=imgdata[i<<2];
+			var g=imgdata[(i<<2)+1];
+			var b=imgdata[(i<<2)+2];
+			var rgb = (r<<16) | (g<<8) | b;
+
+			var particle = toParticle(r, g, b, rgb);
+			particles.vertices.push( particle );
+			particles.colors.push( new THREE.Color( rgb ) );
+		}
+
+		var pmaterial = new THREE.ParticleBasicMaterial({
+			size: psize,
+			vertexColors: THREE.VertexColors
+		} );
+		particleSystem = new THREE.ParticleSystem( particles, pmaterial );
+
+		scene.add( particleSystem );
+	}
+
+	function onloadimage(){
+		loadImage(this);
+	}
+
+	function setImage(src){
+		image = new Image;
+		image.onload = onloadimage;
+		image.src = src;
+	}
+
+	function stepImage(step){
+		curimage += step%imagelist.length;
+		if(curimage<0)
+			curimage=imagelist.length-(curimage%imagelist.length);
+		if(curimage>=imagelist.length)
+			curimage=curimage%imagelist.length;
+		setImage( imagelist[curimage] );
+	}
+
+	function loadLocalFiles(files){
+		if(!files.length)
+			return;
+		for(var i=0; i<files.length; i++){
+			if(!/^image\/.+$/.test(files[i].type)){
+				alert('"'+files[i].name + "\"は読み込めませんでした。対応していないファイルの可能性があります。")
+				continue;
+			}
+			var reader = new FileReader();
+			reader.onload = function(){
+				image = new Image();
+				image.onload = function(){
+					loadImage(this);
+				};
+				image.src = reader.result;
+			};
+			reader.readAsDataURL(files[i]);
+		}
+	}
+
+	window.onload = function(){
+
+		/* File APIが利用できるか */
+		var fileapi = null;
+		try{
+			var fileapi = window.File && window.FileReader && window.FileList && window.Blob;
+		}catch(e){}
+		if(!fileapi)
+			alert('ブラウザがFile APIに対応していないためファイル読み込み機能は使えません。');
+
+		
+		/* WebGLが利用できるか */
+		var maincanvas = document.getElementsByTagName("canvas")[0];
+		var gl=null;
+		try{
+			var gl = window.WebGLRenderingContext || maincanvas.getContext('webgl') || maincanvas.getContext('experimental-webgl');
+		}catch(e){}
+		if(!gl)
+			alert("WebGLを利用できないため3D表示ができません。新しいChromeやFireFoxでご覧ください");
+
+		// 
+		init();
+		animate();
+
+		function init() {
+
+			var container = document.getElementById('canvas');
+			container.id = 'view';
+			container.width  = window.innerWidth;
+			container.height = window.innerHeight;
+			document.body.appendChild(container);
+
+			// camera
+			camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 10000 );
+			camera.position.set(0,0,150);
+
+			scene = new THREE.Scene();
+			scene.add( camera );
+
+			// init source canvas
+			image.onload = onloadimage;
+			image.src = imagelist[0];
+
+			// axis
+			axis = new THREE.LineAxisHelper(128,      // yoya
+					 [0, 0x400000, 0x800000, 0xC00000, 0xFF0000],
+					 [0, 0x004000, 0x008000, 0x00C000, 0x00FF00],
+					 [0, 0x000040, 0x000080, 0x0000C0, 0x0000FF]);
+			axis.position.set( 0, 0, 0 );
+			scene.add( axis );
+			
+			// renderer
+
+			renderer = new THREE.WebGLRenderer( { clearcolor: bgcolor } );
+			renderer.setSize( window.innerWidth, window.innerHeight );
+
+			// Trackball controls
+			controls = new THREE.TrackballControls(camera, renderer.domElement);
+
+			controls.rotateSpeed = 5.0;
+			controls.zoomSpeed = 5;
+			controls.panSpeed = 2;
+			controls.noZoom = false;
+			controls.noPan = false;
+			controls.staticMoving = true;
+			controls.dynamicDampingFactor = 0.3;
+
+			// 
+
+			container.appendChild( renderer.domElement );
+
+			// fileselector
+
+			var fileselector = document.getElementById('fileselector');
+			fileselector.addEventListener("change", function(evt){
+				evt.preventDefault();
+				loadLocalFiles(this.files);
+			}, false);
+			window.addEventListener("dragover", function(evt){
+				evt.preventDefault();
+			}, false);
+			window.addEventListener("drop", function(evt){
+				evt.preventDefault();
+				loadLocalFiles(evt.dataTransfer.files);
+			}, false);
+
+			// GUI
+
+			gui = new dat.GUI();
+			//gui.add(scriptConfig, 'open');
+			var fview = gui.addFolder('View');
+			fview.add(viewChanger, 'top');
+			fview.add(viewChanger, 'bottom');
+			fview.add(viewChanger, 'front');
+			fview.add(viewChanger, 'back');
+			fview.add(viewChanger, 'left');
+			fview.add(viewChanger, 'right');
+			var fgeneral = gui.addFolder('ColorSpace');
+			fgeneral.add(scriptConfig, 'lab');
+			fgeneral.add(scriptConfig, 'xyz');
+			fgeneral.add(scriptConfig, 'rgb');
+			fgeneral.add(scriptConfig, 'hsv');
+			fgeneral.open();
+		}
+
+		function animate() {
+			requestAnimationFrame(animate);
+			render();
+		}
+
+		function render() {
+			controls.update();
+			renderer.render(scene, camera);
+		}
+	}
+
+
+</script>
+
+<div id="optcontainer">
+	<div id="sourceselector">
+		<a href="javascript: stepImage(-1);"><div id="previmage">&lt;</div></a>
+		<a href="javascript: stepImage(1);"><div id="nextimage">&gt;</div></a>
+	</div>
+	<div id="sourcecanvas">
+		<canvas id="source"></canvas>
+	</div>
+	<ul>
+		<li>file: <input type="file" id="fileselector"></li>
+	</ul>
+</div>
+
+<div id="canvas"></div>
+
+<address>by <a href="http://flspz.blogspot.jp/">ikaflower</a> (thanks: <a href="http://d.hatena.ne.jp/yoya/20120827/">yoya</a>)</address>
+
+
+</body>
+</html>
