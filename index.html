@@ -243,9 +243,9 @@
 	function stepImage(step){
 		curimage += step%imagelist.length;
 		if(curimage<0)
-			curimage=imagelist.length-1;
+			curimage+=imagelist.length;
 		if(curimage>=imagelist.length)
-			curimage=0;
+			curimage-=imagelist.length;
 		setImage( imagelist[curimage] );
 	}
 
@@ -276,8 +276,10 @@
 		try{
 			var fileapi = window.File && window.FileReader && window.FileList && window.Blob;
 		}catch(e){}
-		if(!fileapi)
+		if(!fileapi){
 			alert('ブラウザがFile APIに対応していないためファイル読み込み機能は使えません。');
+			return;
+		}
 
 		
 		/* WebGLが利用できるか */
@@ -286,8 +288,10 @@
 		try{
 			var gl = window.WebGLRenderingContext || maincanvas.getContext('webgl') || maincanvas.getContext('experimental-webgl');
 		}catch(e){}
-		if(!gl)
+		if(!gl){
 			alert("WebGLを利用できないため3D表示ができません。新しいChromeやFireFoxでご覧ください");
+			return;
+		}
 
 		// 
 		init();
