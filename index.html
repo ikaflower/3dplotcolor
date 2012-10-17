@@ -4,75 +4,23 @@
 <title>3DPlotColor.js</title>
 <meta charset="utf-8">
 <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js"></script>
-
 <script src="three.min.js"></script>
 <script src="dat.gui.min.js"></script>
 
 <script src="TacoColorLib.js"></script>
-
 <script src="LineAxisHelper.js"></script>
 
-
-<style>
-	body{
-		margin: 0px;
-		overflow: hidden;
-	}
-	#optcontainer, #canvas{
-		position: absolute;
-		top: 0px;
-		left: 0px;
-	}
-	#optcontainer{
-		z-index: 100;
-	}
-	#canvas{
-		z-index: 150;
-	}
-	#sourcecanvas{
-		display: block;
-		clear:both;
-	}
-	#previmage, #nextimage{
-		margin: 0;
-		padding: 0px 30px 0px 30px;
-		color: #ffffff;
-		width: 50px;
-		text-align: center;
-		background-color: #232323;
-		border:1px solid #000000;
-		display: inline;
-	}
-	address {
-		position: absolute;
-		z-index: 150;
-		bottom: 10px;
-		right: 10px;
-		text-align: center;
-		font-style: normal;
-		font-size: 75%;
-	}
-	ul{
-		margin:0;
-		padding:0;
-	}
-	a{
-		text-decoration: none;
-	}
-	a:hover{
-		color: #DD0000;
-	}
-</style>
+<style href="main.css" type="text/css"></style>
 </head>
 
 <body>
 <script type="text/javascript">
 	// Config
 
-	var lsize = 256;	// longer size of scaled image
-	var psize = 1;		// size of particle
+	var lsize = 256;	// longer size of scaled image(it will be source image)
+	var psize = 1;		// size of Particle
 
-	var bgcolor = 0xFFFFFF;
+	var bgcolor = 0xFFFFFF;	// clearColor
 
 	// Global
 
@@ -141,8 +89,6 @@
 		//}
 	};
 
-	
-
 	function loadImage(img){
 		if(!img)
 			img=image;
@@ -168,7 +114,7 @@
 		var imgdata = context.getImageData(0, 0, w, h).data;
 		
 		var particles = new THREE.Geometry();
-		var len = imgdata.length>>2;
+		var len = imgdata.length / 4;
 
 		//calcurate particle coordinates from RGB color
 		var toParticle;
@@ -176,8 +122,9 @@
 			case 'rgb':
 				toParticle=function(r, g, b, rgb){
 					return new THREE.Vector3(r*0.3921568-50.1960784, g*0.3921568-50.1960784, b*0.3921568-50.1960784);
-					//return new THREE.Vector3(r-128, g-128, b-128);
+					//original: return new THREE.Vector3(r-128, g-128, b-128);
 					//マジックナンバーはlabのパーティクルの密度にあわせるため
+					//I hope there will be compareble density of Particles in each color space.
 				};
 				break;
 			case 'xyz':
@@ -191,10 +138,10 @@
 					//from http://d.hatena.ne.jp/yoya/20120828/
 					var hsv = THREE.ColorUtils.rgbToHsv({r:r, g:g, b:b});
 					hsv.v /= 255.0
-					var rad = hsv.h * 6.2831853; // 最適化 6.2831853 = 2 * 3.1415926
+					var rad = hsv.h * 6.2831853; // optimized. 6.2831853 = 2 * 3.1415926
 					var xyz = [hsv.v, hsv.s * Math.cos(rad), hsv.s * Math.sin(rad)];
 					return new THREE.Vector3(xyz[0]*120-60, xyz[1]*60, xyz[2]*60);
-					//マジックナンバーはlabのパーティクルの密度にあわせるため
+					//original: return new THREE.Vector3(xyz[0]*200-100, xyz[1]*100, xyz[0]*100);
 				};
 				break;
 			default:
@@ -254,7 +201,7 @@
 			return;
 		for(var i=0; i<files.length; i++){
 			if(!/^image\/.+$/.test(files[i].type)){
-				alert('"'+files[i].name + "\"は読み込めませんでした。対応していないファイルの可能性があります。")
+				alert('"'+files[i].name + "\"は読み込めませんでした。対応していないファイルの可能性があります。\ncouldn't load your file. it may not supported format.")
 				continue;
 			}
 			var reader = new FileReader();
@@ -269,19 +216,17 @@
 		}
 	}
 
-	window.onload = function(){
-
+	function checkBrowser(){
 		/* File APIが利用できるか */
 		var fileapi = null;
 		try{
 			var fileapi = window.File && window.FileReader && window.FileList && window.Blob;
 		}catch(e){}
 		if(!fileapi){
-			alert('ブラウザがFile APIに対応していないためファイル読み込み機能は使えません。');
-			return;
+			alert("ブラウザがFile APIに対応していないためファイル読み込み機能は使えません。\nYour browser don't support File API. you can't load a local file.");
+			return false;
 		}
 
-		
 		/* WebGLが利用できるか */
 		var maincanvas = document.getElementsByTagName("canvas")[0];
 		var gl=null;
@@ -289,11 +234,28 @@
 			var gl = window.WebGLRenderingContext || maincanvas.getContext('webgl') || maincanvas.getContext('experimental-webgl');
 		}catch(e){}
 		if(!gl){
-			alert("WebGLを利用できないため3D表示ができません。新しいChromeやFireFoxでご覧ください");
-			return;
+			alert("WebGLを利用できないため3D表示ができません。新しいChromeやFireFoxでご覧ください。\nOn your browser WebGL is disable. it is recommend to use new Chrome or FireFox and enable WebGL.");
+			return false;
 		}
 
-		// 
+		return true;
+	}
+
+	function byte2hex(n){
+		var str = new Number(n).toString(16);
+		return (str.length==1?'0':'') + str;
+	}
+	function rgb2hex(r, g, b){
+		return '#' + byte2hex(r) + byte2hex(g) + byte2hex(b);
+	}
+
+	window.onload = function(){
+
+		var infoElem = document.getElementById('infobar');
+
+		if(!checkBrowser())
+			return;
+
 		init();
 		animate();
 
@@ -359,6 +321,10 @@
 				loadLocalFiles(evt.dataTransfer.files);
 			}, false);
 
+			// Event
+			
+			renderer.domElement.addEventListener('mousemove', onDocumentMouseMove, false);
+
 			// GUI
 
 			gui = new dat.GUI();
@@ -377,6 +343,31 @@
 			fgeneral.add(scriptConfig, 'hsv');
 			fgeneral.open();
 		}
+
+		function updatePixelInfo(x, y){
+			var gl = renderer.getContext();
+			var pixelBuffer = new Uint8Array(4);
+			
+			gl.readPixels(x, renderer.domElement.height - y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixelBuffer);
+			var r = pixelBuffer[0];
+			var g = pixelBuffer[1];
+			var b = pixelBuffer[2];
+			var a = pixelBuffer[3];
+
+			if(a==0)
+				return;
+
+			infoElem.innerHTML = '<p style="border-left:14px solid '+rgb2hex(r,g,b)+'">'+[r,g,b]+'</p>';
+		}
+		function onDocumentMouseMove(evt){
+			var evt = evt || window.event;
+			evt.preventDefault();
+			
+			if(evt.altKey)
+				return;
+			
+			updatePixelInfo(evt.clientX, evt.clientY)
+		};
 
 		function animate() {
 			requestAnimationFrame(animate);
@@ -403,6 +394,8 @@
 	<ul>
 		<li>file: <input type="file" id="fileselector"></li>
 	</ul>
+	<div id="infobar">
+	</div>
 </div>
 
 <div id="canvas"></div>
